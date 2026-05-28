@@ -4,6 +4,8 @@
   "description": "Shared core modules for Raedus Labs mobile apps (Expo + Supabase + RevenueCat)",
   "scripts": {
     "test": "jest",
+    "test:exports": "node scripts/verify-package-exports.js",
+    "test:all": "npm run typecheck && npm test -- --runInBand && npm run test:exports",
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit"
   },
@@ -13,17 +15,18 @@
     ".": "./src/index.ts",
     "./ai": "./src/ai/index.ts",
     "./auth": "./src/auth/index.ts",
-    "./constants": "./src/constants/index.ts",
     "./notifications": "./src/notifications/index.ts",
     "./storage": "./src/storage/index.ts",
-    "./subscription": "./src/subscription/index.ts",
-    "./ui": "./src/ui/index.ts"
+    "./subscription": "./src/subscription/index.ts"
   },
   "peerDependencies": {
+    "@google/generative-ai": ">=0.24.0",
     "@react-native-async-storage/async-storage": ">=2.0.0",
     "@supabase/supabase-js": ">=2.0.0",
-    "expo-linear-gradient": ">=14.0.0",
+    "expo-auth-session": ">=56.0.0",
     "expo-notifications": ">=56.0.0",
+    "expo-secure-store": ">=56.0.0",
+    "expo-web-browser": ">=56.0.0",
     "react": ">=18.0.0",
     "react-native": ">=0.76.0",
     "react-native-purchases": ">=8.0.0"

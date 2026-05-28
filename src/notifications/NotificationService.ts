@@ -21,6 +21,27 @@ export interface NotificationConfig {
 
 let _config: NotificationConfig | null = null;
 
+function assertNonEmptyString(value: string, fieldName: string): void {
+  if (value.trim().length === 0) {
+    throw new Error(`NotificationConfig.${fieldName} must not be empty.`);
+  }
+}
+
+function validateNotificationConfig(config: NotificationConfig): void {
+  assertNonEmptyString(config.storagePrefix, 'storagePrefix');
+  assertNonEmptyString(config.channelId, 'channelId');
+  assertNonEmptyString(config.channelName, 'channelName');
+  assertNonEmptyString(config.appName, 'appName');
+  assertNonEmptyString(config.accentColor, 'accentColor');
+
+  if (config.messages.length === 0) {
+    throw new Error('NotificationConfig.messages must contain at least one message.');
+  }
+  for (const message of config.messages) {
+    assertNonEmptyString(message, 'messages[]');
+  }
+}
+
 function getConfig(): NotificationConfig {
   if (!_config) {
     throw new Error(
@@ -36,7 +57,11 @@ function getConfig(): NotificationConfig {
  * any other notification functions are used.
  */
 export function configureNotifications(config: NotificationConfig): void {
-  _config = config;
+  validateNotificationConfig(config);
+  _config = {
+    ...config,
+    messages: [...config.messages],
+  };
 }
 
 // ── Derived storage keys and identifiers ──────────────────────────────────────
@@ -64,6 +89,23 @@ export interface ReminderPreferences {
 }
 
 const DEFAULT_TIME: ReminderTime = { hour: 7, minute: 30 };
+
+function isValidReminderTime(time: ReminderTime): boolean {
+  return (
+    Number.isInteger(time.hour) &&
+    Number.isInteger(time.minute) &&
+    time.hour >= 0 &&
+    time.hour <= 23 &&
+    time.minute >= 0 &&
+    time.minute <= 59
+  );
+}
+
+function assertValidReminderTime(time: ReminderTime): void {
+  if (!isValidReminderTime(time)) {
+    throw new RangeError('Reminder time must use integer hour 0-23 and minute 0-59.');
+  }
+}
 
 // ── Notification handler setup (call once at app start) ────────────────────────
 
@@ -109,6 +151,8 @@ export async function scheduleMorningReminder(
   hour: number,
   minute: number,
 ): Promise<void> {
+  assertValidReminderTime({ hour, minute });
+
   // Cancel any existing morning reminder before scheduling a new one
   await cancelMorningReminder();
 
@@ -154,12 +198,7 @@ export async function loadReminderPreferences(): Promise<ReminderPreferences> {
   if (timeRaw[1]) {
     try {
       const parsed = JSON.parse(timeRaw[1]) as ReminderTime;
-      if (
-        typeof parsed.hour === 'number' &&
-        typeof parsed.minute === 'number' &&
-        parsed.hour >= 0 && parsed.hour <= 23 &&
-        parsed.minute >= 0 && parsed.minute <= 59
-      ) {
+      if (isValidReminderTime(parsed)) {
         time = parsed;
       }
     } catch {
@@ -192,6 +231,8 @@ export async function setMorningReminderEnabled(
   enabled: boolean,
   time: ReminderTime = DEFAULT_TIME,
 ): Promise<boolean> {
+  assertValidReminderTime(time);
+
   if (enabled) {
     const granted = await requestPermissions();
     if (!granted) return false;
@@ -210,6 +251,8 @@ export async function setMorningReminderEnabled(
  * Update just the reminder time (reschedules if currently enabled).
  */
 export async function updateReminderTime(time: ReminderTime): Promise<void> {
+  assertValidReminderTime(time);
+
   const prefs = await loadReminderPreferences();
   prefs.time = time;
   await saveReminderPreferences(prefs);

@@ -31,6 +31,10 @@ const Purchases = {
   setLogLevel: jest.fn(),
   configure: jest.fn(),
   getCustomerInfo: jest.fn().mockResolvedValue(mockCustomerInfo),
+  logIn: jest.fn().mockResolvedValue({
+    customerInfo: mockCustomerInfo,
+    created: false,
+  }),
   purchasePackage: jest.fn().mockResolvedValue({ customerInfo: mockCustomerInfo }),
   restorePurchases: jest.fn().mockResolvedValue(mockCustomerInfo),
   getOfferings: jest.fn().mockResolvedValue({ current: { availablePackages: [] } }),

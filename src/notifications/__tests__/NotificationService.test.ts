@@ -53,6 +53,24 @@ describe('NotificationService', () => {
       // If config wasn't stored, this would throw
       await expect(scheduleMorningReminder(8, 0)).resolves.not.toThrow();
     });
+
+    it('rejects empty message lists', () => {
+      expect(() =>
+        configureNotifications({
+          ...TEST_CONFIG,
+          messages: [],
+        }),
+      ).toThrow(/messages/);
+    });
+
+    it('rejects blank required config fields', () => {
+      expect(() =>
+        configureNotifications({
+          ...TEST_CONFIG,
+          channelId: '   ',
+        }),
+      ).toThrow(/channelId/);
+    });
   });
 
   describe('configureNotificationHandler', () => {
@@ -143,6 +161,12 @@ describe('NotificationService', () => {
         .calls[0][0];
       expect(TEST_CONFIG.messages).toContain(callArg.content.body);
     });
+
+    it('rejects out-of-range reminder times', async () => {
+      await expect(scheduleMorningReminder(24, 0)).rejects.toThrow(/Reminder time/);
+      await expect(scheduleMorningReminder(9, 60)).rejects.toThrow(/Reminder time/);
+      expect(Notifications.scheduleNotificationAsync).not.toHaveBeenCalled();
+    });
   });
 
   describe('cancelMorningReminder', () => {
@@ -195,6 +219,16 @@ describe('NotificationService', () => {
       (storage.multiGet as jest.Mock).mockResolvedValueOnce([
         ['@test-app/reminder-enabled', 'false'],
         ['@test-app/reminder-time', '{"hour":25,"minute":70}'],
+      ]);
+
+      const prefs = await loadReminderPreferences();
+      expect(prefs.time).toEqual({ hour: 7, minute: 30 });
+    });
+
+    it('rejects fractional time values from storage', async () => {
+      (storage.multiGet as jest.Mock).mockResolvedValueOnce([
+        ['@test-app/reminder-enabled', 'false'],
+        ['@test-app/reminder-time', '{"hour":7.5,"minute":0}'],
       ]);
 
       const prefs = await loadReminderPreferences();
@@ -274,6 +308,13 @@ describe('NotificationService', () => {
 
       expect(storage.multiSet).toHaveBeenCalled();
       expect(Notifications.scheduleNotificationAsync).not.toHaveBeenCalled();
+    });
+
+    it('rejects invalid new times before persisting', async () => {
+      await expect(updateReminderTime({ hour: 8, minute: -1 })).rejects.toThrow(
+        /Reminder time/,
+      );
+      expect(storage.multiSet).not.toHaveBeenCalled();
     });
   });
 });
