@@ -81,6 +81,8 @@ EXPO_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 EXPO_PUBLIC_GEMINI_API_KEY=your-gemini-key
 ```
 
+`EXPO_PUBLIC_*` values are bundled into Expo apps. Do not use the shared Gemini client with a production Gemini API key in a public mobile/web build; route production AI calls through a backend or Supabase Edge Function where the key can stay server-side.
+
 ### RevenueCat
 Set the platform key for the current build target:
 ```
