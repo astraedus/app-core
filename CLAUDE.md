@@ -84,12 +84,19 @@ EXPO_PUBLIC_GEMINI_API_KEY=your-gemini-key
 ### RevenueCat
 Configure in your app's code -- the `useSubscription` hook reads from RevenueCat SDK which you initialize separately.
 
+## Dev Setup
+```bash
+npm install           # install dev dependencies
+npm test              # run Jest test suite (66 tests)
+npm run typecheck     # run tsc --noEmit
+```
+
 ## Rules
 - **ZERO app-specific code.** No references to dreams, pets, astrology, or any domain.
 - **All config is parameterized.** App name, messages, keys come from the consumer.
 - **Peer dependencies only.** React, React Native, Supabase, RevenueCat, Expo modules.
 - **TypeScript source shipped directly.** Metro bundles it -- no compile step needed.
-- **Tests live in consuming apps** (integration context), not here.
+- **Tests**: Unit tests in `src/<module>/__tests__/`. Run `npm test` before push.
 
 ## Update Flow
 1. Fix/improve code here
