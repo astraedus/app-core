@@ -7,7 +7,20 @@ import { useState, useEffect, useCallback } from 'react';
 import type { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@core/storage';
 
-interface UseAuthResult {
+export interface AuthProfileConfig {
+  table?: string;
+  onConflict?: string;
+  buildProfile: (params: {
+    user: User;
+    email: string;
+  }) => Record<string, unknown> | Promise<Record<string, unknown>>;
+}
+
+export interface UseAuthOptions {
+  profile?: AuthProfileConfig;
+}
+
+export interface UseAuthResult {
   user: User | null;
   session: Session | null;
   loading: boolean;
@@ -18,18 +31,53 @@ interface UseAuthResult {
   signOut: () => Promise<void>;
 }
 
-export function useAuth(): UseAuthResult {
+async function createConfiguredProfile(
+  user: User,
+  email: string,
+  profileConfig?: AuthProfileConfig,
+): Promise<string | null> {
+  if (!profileConfig) return null;
+
+  try {
+    const profile = await profileConfig.buildProfile({ user, email });
+    const { error } = await supabase
+      .from(profileConfig.table ?? 'profiles')
+      .upsert(
+        { ...profile, id: user.id },
+        { onConflict: profileConfig.onConflict ?? 'id' },
+      );
+
+    return error?.message ?? null;
+  } catch (error) {
+    return error instanceof Error ? error.message : 'Failed to create user profile';
+  }
+}
+
+export function useAuth(options: UseAuthOptions = {}): UseAuthResult {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const profileConfig = options.profile;
 
   useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session: s } }) => {
-      setSession(s);
-      setUser(s?.user ?? null);
-      setLoading(false);
-    });
+    let mounted = true;
+
+    async function loadInitialSession() {
+      try {
+        const { data: { session: s } } = await supabase.auth.getSession();
+        if (!mounted) return;
+        setSession(s);
+        setUser(s?.user ?? null);
+      } catch {
+        if (!mounted) return;
+        setSession(null);
+        setUser(null);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    }
+
+    loadInitialSession();
 
     // Listen for auth changes
     const {
@@ -39,21 +87,20 @@ export function useAuth(): UseAuthResult {
       setUser(s?.user ?? null);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signUp = useCallback(async (email: string, password: string) => {
     const { data, error } = await supabase.auth.signUp({ email, password });
     if (!error && data.user) {
-      // Create profile for new user
-      await supabase.from('profiles').upsert({
-        id: data.user.id,
-        display_name: email.split('@')[0],
-        interpretation_framework: 'jungian',
-      }, { onConflict: 'id' });
+      const profileError = await createConfiguredProfile(data.user, email, profileConfig);
+      if (profileError) return { error: profileError };
     }
     return { error: error?.message ?? null };
-  }, []);
+  }, [profileConfig]);
 
   const signIn = useCallback(async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });

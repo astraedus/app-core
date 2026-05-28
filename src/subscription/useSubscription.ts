@@ -13,7 +13,7 @@ import Purchases, {
 
 const ENTITLEMENT_ID = 'pro';
 
-interface UseSubscriptionResult {
+export interface UseSubscriptionResult {
   isPro: boolean;
   loading: boolean;
   customerInfo: CustomerInfo | null;
@@ -24,10 +24,14 @@ interface UseSubscriptionResult {
 }
 
 let initialized = false;
+let configuredApiKey: string | null = null;
+let currentAppUserID: string | undefined;
 
 /** Reset module state for testing. Not for production use. */
 export function __resetForTesting() {
   initialized = false;
+  configuredApiKey = null;
+  currentAppUserID = undefined;
 }
 
 export function useSubscription(): UseSubscriptionResult {
@@ -42,8 +46,6 @@ export function useSubscription(): UseSubscriptionResult {
   }, []);
 
   const initialize = useCallback(async (userId?: string) => {
-    if (initialized) return;
-
     const apiKey = Platform.OS === 'ios'
       ? (process.env.EXPO_PUBLIC_REVENUECAT_IOS_KEY ?? '')
       : (process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_KEY ?? '');
@@ -53,17 +55,29 @@ export function useSubscription(): UseSubscriptionResult {
     }
 
     try {
-      Purchases.setLogLevel(LOG_LEVEL.DEBUG);
-      Purchases.configure({ apiKey, appUserID: userId });
-      initialized = true;
+      let info: CustomerInfo;
 
-      const info = await Purchases.getCustomerInfo();
+      if (!initialized || configuredApiKey !== apiKey) {
+        Purchases.setLogLevel(LOG_LEVEL.DEBUG);
+        Purchases.configure({ apiKey, appUserID: userId });
+        initialized = true;
+        configuredApiKey = apiKey;
+        currentAppUserID = userId;
+        info = await Purchases.getCustomerInfo();
+      } else if (userId && currentAppUserID !== userId) {
+        const loginResult = await Purchases.logIn(userId);
+        currentAppUserID = userId;
+        info = loginResult.customerInfo;
+      } else {
+        info = await Purchases.getCustomerInfo();
+      }
+
       checkEntitlements(info);
     } catch {
       // RevenueCat not configured yet -- that's fine for dev
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   }, [checkEntitlements]);
 
   useEffect(() => {
@@ -72,32 +86,41 @@ export function useSubscription(): UseSubscriptionResult {
 
   const purchase = useCallback(async (pkg: PurchasesPackage): Promise<boolean> => {
     try {
+      if (!initialized) await initialize();
+      if (!initialized) return false;
+
       const { customerInfo: info } = await Purchases.purchasePackage(pkg);
       checkEntitlements(info);
       return info.entitlements.active[ENTITLEMENT_ID] !== undefined;
     } catch {
       return false;
     }
-  }, [checkEntitlements]);
+  }, [checkEntitlements, initialize]);
 
   const restore = useCallback(async (): Promise<boolean> => {
     try {
+      if (!initialized) await initialize();
+      if (!initialized) return false;
+
       const info = await Purchases.restorePurchases();
       checkEntitlements(info);
       return info.entitlements.active[ENTITLEMENT_ID] !== undefined;
     } catch {
       return false;
     }
-  }, [checkEntitlements]);
+  }, [checkEntitlements, initialize]);
 
   const getOfferings = useCallback(async (): Promise<PurchasesPackage[]> => {
     try {
+      if (!initialized) await initialize();
+      if (!initialized) return [];
+
       const offerings = await Purchases.getOfferings();
       return offerings.current?.availablePackages ?? [];
     } catch {
       return [];
     }
-  }, []);
+  }, [initialize]);
 
   return { isPro, loading, customerInfo, initialize, purchase, restore, getOfferings };
 }

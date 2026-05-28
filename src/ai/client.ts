@@ -1,7 +1,5 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-const GEMINI_API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY ?? '';
-
 type ModelTier = 'sonnet' | 'haiku';
 
 const MODEL_IDS: Record<ModelTier, string> = {
@@ -11,11 +9,24 @@ const MODEL_IDS: Record<ModelTier, string> = {
 
 let clientInstance: GoogleGenerativeAI | null = null;
 
+function readGeminiApiKey(): string {
+  const apiKey = process.env.EXPO_PUBLIC_GEMINI_API_KEY?.trim();
+  if (!apiKey) {
+    throw new Error('EXPO_PUBLIC_GEMINI_API_KEY is required before using @raeduslabs/core/ai.');
+  }
+  return apiKey;
+}
+
 export function getClient(): GoogleGenerativeAI {
   if (!clientInstance) {
-    clientInstance = new GoogleGenerativeAI(GEMINI_API_KEY);
+    clientInstance = new GoogleGenerativeAI(readGeminiApiKey());
   }
   return clientInstance;
+}
+
+/** Reset module state for testing. Not for production use. */
+export function __resetAIClientForTesting() {
+  clientInstance = null;
 }
 
 export interface AICompletionOptions {

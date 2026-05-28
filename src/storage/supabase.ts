@@ -7,8 +7,16 @@ import { createClient } from '@supabase/supabase-js';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 
-const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
-const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
+function readRequiredEnv(name: string): string {
+  const value = process.env[name]?.trim();
+  if (!value) {
+    throw new Error(`${name} is required before importing @raeduslabs/core/storage.`);
+  }
+  return value;
+}
+
+const SUPABASE_URL = readRequiredEnv('EXPO_PUBLIC_SUPABASE_URL');
+const SUPABASE_ANON_KEY = readRequiredEnv('EXPO_PUBLIC_SUPABASE_ANON_KEY');
 
 /**
  * SecureStore adapter for Supabase auth token persistence.

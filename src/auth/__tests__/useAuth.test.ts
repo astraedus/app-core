@@ -16,6 +16,7 @@ const mockSignInWithOAuth = jest.fn().mockResolvedValue({ data: { url: null }, e
 const mockResetPasswordForEmail = jest.fn().mockResolvedValue({ error: null });
 const mockSignOut = jest.fn().mockResolvedValue({});
 const mockUpsert = jest.fn().mockResolvedValue({ error: null });
+const mockFrom = jest.fn().mockReturnValue({ upsert: mockUpsert });
 
 jest.mock('@core/storage', () => ({
   supabase: {
@@ -28,7 +29,7 @@ jest.mock('@core/storage', () => ({
       resetPasswordForEmail: mockResetPasswordForEmail,
       signOut: mockSignOut,
     },
-    from: jest.fn().mockReturnValue({ upsert: mockUpsert }),
+    from: mockFrom,
   },
 }));
 
@@ -79,6 +80,11 @@ describe('useAuth', () => {
     expect(mockOnAuthStateChange).toHaveBeenCalled();
   });
 
+  it('handles initial session load rejection without throwing', () => {
+    mockGetSession.mockRejectedValueOnce(new Error('SecureStore unavailable'));
+    expect(() => useAuth()).not.toThrow();
+  });
+
   describe('signIn', () => {
     it('calls supabase.auth.signInWithPassword', async () => {
       await hookResult.signIn('test@example.com', 'password123');
@@ -118,6 +124,58 @@ describe('useAuth', () => {
       });
       const result = await hookResult.signUp('taken@example.com', 'pass');
       expect(result.error).toBe('Email taken');
+    });
+
+    it('does not write an app-specific profile by default', async () => {
+      mockSignUp.mockResolvedValueOnce({
+        data: { user: { id: 'user-1' } },
+        error: null,
+      });
+
+      const result = await hookResult.signUp('new@example.com', 'password123');
+
+      expect(result.error).toBeNull();
+      expect(mockFrom).not.toHaveBeenCalled();
+      expect(mockUpsert).not.toHaveBeenCalled();
+    });
+
+    it('creates a configured profile when profile options are supplied', async () => {
+      mockSignUp.mockResolvedValueOnce({
+        data: { user: { id: 'user-1' } },
+        error: null,
+      });
+
+      const result = useAuth({
+        profile: {
+          table: 'profiles',
+          buildProfile: ({ email }) => ({ display_name: email.split('@')[0] }),
+        },
+      });
+
+      await result.signUp('new@example.com', 'password123');
+
+      expect(mockFrom).toHaveBeenCalledWith('profiles');
+      expect(mockUpsert).toHaveBeenCalledWith(
+        { display_name: 'new', id: 'user-1' },
+        { onConflict: 'id' },
+      );
+    });
+
+    it('returns profile creation errors', async () => {
+      mockSignUp.mockResolvedValueOnce({
+        data: { user: { id: 'user-1' } },
+        error: null,
+      });
+      mockUpsert.mockResolvedValueOnce({ error: { message: 'missing profile column' } });
+
+      const result = useAuth({
+        profile: {
+          buildProfile: () => ({ display_name: 'new' }),
+        },
+      });
+
+      const signUpResult = await result.signUp('new@example.com', 'password123');
+      expect(signUpResult.error).toBe('missing profile column');
     });
   });
 

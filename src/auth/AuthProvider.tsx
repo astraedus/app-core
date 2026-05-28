@@ -4,14 +4,19 @@
  */
 
 import { createContext, useContext, ReactNode } from 'react';
-import { useAuth } from './useAuth';
+import { useAuth, type UseAuthOptions } from './useAuth';
 
 type AuthContextType = ReturnType<typeof useAuth>;
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const auth = useAuth();
+export interface AuthProviderProps {
+  children: ReactNode;
+  authOptions?: UseAuthOptions;
+}
+
+export function AuthProvider({ children, authOptions }: AuthProviderProps) {
+  const auth = useAuth(authOptions);
   return <AuthContext.Provider value={auth}>{children}</AuthContext.Provider>;
 }
 

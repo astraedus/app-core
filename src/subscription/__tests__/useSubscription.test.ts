@@ -98,6 +98,15 @@ describe('useSubscription', () => {
       expect(Purchases.configure).toHaveBeenCalledTimes(1);
     });
 
+    it('logs in when a userId becomes available after anonymous initialization', async () => {
+      const result = useSubscription();
+      await result.initialize();
+      await result.initialize('user-123');
+
+      expect(Purchases.configure).toHaveBeenCalledTimes(1);
+      expect(Purchases.logIn).toHaveBeenCalledWith('user-123');
+    });
+
     it('skips initialization when API key is missing', async () => {
       delete process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_KEY;
       stateStore = {};
@@ -152,6 +161,19 @@ describe('useSubscription', () => {
       const result = useSubscription();
       const success = await result.purchase({} as PurchasesPackage);
       expect(success).toBe(false);
+    });
+
+    it('does not call purchasePackage when RevenueCat is not configured', async () => {
+      delete process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_KEY;
+      stateStore = {};
+      stateCounter = 0;
+      __resetForTesting();
+
+      const result = useSubscription();
+      const success = await result.purchase({} as PurchasesPackage);
+
+      expect(success).toBe(false);
+      expect(Purchases.purchasePackage).not.toHaveBeenCalled();
     });
   });
 

@@ -23,12 +23,14 @@ jest.mock('react-native', () => ({
 }));
 
 describe('supabase client', () => {
-  beforeAll(() => {
+  beforeEach(() => {
+    jest.resetModules();
+    mockCreateClient.mockClear();
     process.env.EXPO_PUBLIC_SUPABASE_URL = 'https://test.supabase.co';
     process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY = 'test-anon-key';
   });
 
-  afterAll(() => {
+  afterEach(() => {
     delete process.env.EXPO_PUBLIC_SUPABASE_URL;
     delete process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
   });
@@ -66,5 +68,11 @@ describe('supabase client', () => {
     const { supabase: a } = require('../supabase');
     const { supabase: b } = require('../supabase');
     expect(a).toBe(b);
+  });
+
+  it('throws a clear error when required env vars are missing', () => {
+    delete process.env.EXPO_PUBLIC_SUPABASE_URL;
+    expect(() => require('../supabase')).toThrow(/EXPO_PUBLIC_SUPABASE_URL/);
+    expect(mockCreateClient).not.toHaveBeenCalled();
   });
 });

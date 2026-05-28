@@ -1,4 +1,4 @@
-import { parseJsonResponse, getClient, complete } from '../client';
+import { parseJsonResponse, getClient, complete, __resetAIClientForTesting } from '../client';
 
 // Mock @google/generative-ai before import
 jest.mock('@google/generative-ai', () => {
@@ -75,6 +75,16 @@ describe('parseJsonResponse', () => {
 });
 
 describe('getClient', () => {
+  beforeEach(() => {
+    process.env.EXPO_PUBLIC_GEMINI_API_KEY = 'test-gemini-key';
+    __resetAIClientForTesting();
+  });
+
+  afterEach(() => {
+    delete process.env.EXPO_PUBLIC_GEMINI_API_KEY;
+    __resetAIClientForTesting();
+  });
+
   it('returns a GoogleGenerativeAI instance', () => {
     const client = getClient();
     expect(client).toBeDefined();
@@ -86,9 +96,25 @@ describe('getClient', () => {
     const b = getClient();
     expect(a).toBe(b);
   });
+
+  it('throws a clear error when Gemini API key is missing', () => {
+    delete process.env.EXPO_PUBLIC_GEMINI_API_KEY;
+    __resetAIClientForTesting();
+    expect(() => getClient()).toThrow(/EXPO_PUBLIC_GEMINI_API_KEY/);
+  });
 });
 
 describe('complete', () => {
+  beforeEach(() => {
+    process.env.EXPO_PUBLIC_GEMINI_API_KEY = 'test-gemini-key';
+    __resetAIClientForTesting();
+  });
+
+  afterEach(() => {
+    delete process.env.EXPO_PUBLIC_GEMINI_API_KEY;
+    __resetAIClientForTesting();
+  });
+
   it('returns a structured AICompletionResult', async () => {
     const result = await complete({
       model: 'sonnet',

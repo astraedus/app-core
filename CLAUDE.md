@@ -82,21 +82,44 @@ EXPO_PUBLIC_GEMINI_API_KEY=your-gemini-key
 ```
 
 ### RevenueCat
-Configure in your app's code -- the `useSubscription` hook reads from RevenueCat SDK which you initialize separately.
+Set the platform key for the current build target:
+```
+EXPO_PUBLIC_REVENUECAT_IOS_KEY=appl_your-ios-key
+EXPO_PUBLIC_REVENUECAT_ANDROID_KEY=goog_your-android-key
+```
+
+`useSubscription()` configures RevenueCat lazily on first use. If the app starts anonymously and later gets a Supabase user id, call `initialize(user.id)` again; the hook will `logIn()` instead of dropping the identity change.
+
+### Auth Profile Creation
+`useAuth()` is app-agnostic by default and does not write a profile row. Apps that need profile bootstrap data should pass a profile config:
+
+```typescript
+<AuthProvider
+  authOptions={{
+    profile: {
+      buildProfile: ({ email }) => ({ display_name: email.split('@')[0] }),
+    },
+  }}
+>
+  {children}
+</AuthProvider>
+```
 
 ## Dev Setup
 ```bash
 npm install           # install dev dependencies
-npm test              # run Jest test suite (66 tests)
+npm test              # run Jest test suite (79 tests)
 npm run typecheck     # run tsc --noEmit
+npm run test:exports  # verify package.json entry points point at real files
+npm run test:all      # full local release gate
 ```
 
 ## Rules
 - **ZERO app-specific code.** No references to dreams, pets, astrology, or any domain.
 - **All config is parameterized.** App name, messages, keys come from the consumer.
-- **Peer dependencies only.** React, React Native, Supabase, RevenueCat, Expo modules.
+- **Peer dependencies only.** React, React Native, Gemini, Supabase, RevenueCat, Expo modules.
 - **TypeScript source shipped directly.** Metro bundles it -- no compile step needed.
-- **Tests**: Unit tests in `src/<module>/__tests__/`. Run `npm test` before push.
+- **Tests**: Unit tests in `src/<module>/__tests__/`. Run `npm run test:all` before push.
 
 ## Update Flow
 1. Fix/improve code here
@@ -116,9 +139,10 @@ npm run typecheck     # run tsc --noEmit
 ### auth/
 | Export | Type | Description |
 |--------|------|-------------|
-| `useAuth()` | hook | Returns `{ user, session, loading, signIn, signUp, signInWithGoogle, signOut, resetPassword }` |
+| `useAuth(options?)` | hook | Returns `{ user, session, loading, signIn, signUp, signInWithGoogle, signOut, resetPassword }` |
 | `AuthProvider` | component | Wrap app root to provide auth context |
 | `useAuthContext()` | hook | Access auth context directly |
+| `AuthProfileConfig` | type | Optional app-specific profile bootstrap config |
 
 ### notifications/
 | Export | Type | Description |
@@ -141,7 +165,7 @@ npm run typecheck     # run tsc --noEmit
 ### subscription/
 | Export | Type | Description |
 |--------|------|-------------|
-| `useSubscription()` | hook | Returns `{ isPro, loading, purchase, restore }` |
+| `useSubscription()` | hook | Returns `{ isPro, loading, customerInfo, initialize, purchase, restore, getOfferings }` |
 
 ## Current Consumers
 - **dream-journal** -- Recall: AI Dream Journal (Play Store review pending)
