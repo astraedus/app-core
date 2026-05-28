@@ -1,84 +1,141 @@
-# @raeduslabs/core -- Shared Mobile App Core
+# @raeduslabs/core -- Shared Mobile Infrastructure
 
 ## What This Is
-Shared core modules for all Raedus Labs Expo mobile apps. Single source of truth. Every app imports this package instead of having its own copy of auth, subscriptions, notifications, UI, etc.
+Shared **infrastructure** modules for all Raedus Labs Expo mobile apps. Single source of truth for auth, payments, notifications, AI, and database. Each app builds its own visual identity -- this package handles plumbing, not pixels.
 
 ## Architecture
 ```
 src/
-  ai/           → Gemini/LLM client: complete(), parseJsonResponse()
-  auth/         → Supabase auth wrapper: useAuth(), AuthProvider
-  constants/    → Design tokens: createAppTheme(), Colors, Typography, Spacing
-  notifications/→ Push notification service (parameterized: app name, messages, channel)
+  ai/           → LLM client: complete(), parseJsonResponse(), getClient()
+  auth/         → Supabase auth: useAuth(), AuthProvider
+  notifications/→ Push notifications: configureNotifications(), schedule/cancel
   storage/      → Supabase client singleton
-  subscription/ → RevenueCat hook: useSubscription()
-  ui/           → Shared components: GlassCard, Button, Pill, ProgressBar, etc.
+  subscription/ → RevenueCat: useSubscription()
   index.ts      → Barrel export
 ```
 
-## How Apps Use This
+**NOT in this package** (each app builds its own):
+- Colors, themes, design tokens
+- UI components (cards, buttons, etc.)
+- Typography, spacing
+- Domain logic, prompts, models
 
-### Install
+## Install
 ```bash
 npm install github:astraedus/app-core
 ```
 
-### Import
+## Usage
+
 ```typescript
+// Auth
 import { useAuth, AuthProvider } from '@raeduslabs/core/auth';
-import { GlassCard, Button, Pill } from '@raeduslabs/core/ui';
+
+// AI (Gemini/LLM)
 import { complete, parseJsonResponse } from '@raeduslabs/core/ai';
-import { Colors, Typography, Spacing } from '@raeduslabs/core/constants';
-import { configureNotifications } from '@raeduslabs/core/notifications';
+
+// Subscriptions (RevenueCat)
 import { useSubscription } from '@raeduslabs/core/subscription';
+
+// Database
+import { supabase } from '@raeduslabs/core/storage';
+
+// Push Notifications (must configure first)
+import { configureNotifications, setMorningReminderEnabled } from '@raeduslabs/core/notifications';
 ```
 
-### App-Specific Config
-Each app provides its own brand + notification config:
+## Required App-Specific Config
+
+### Notifications
+Call `configureNotifications()` once at app startup before using any notification functions:
 
 ```typescript
-// In app's _layout.tsx or config file:
 import { configureNotifications } from '@raeduslabs/core/notifications';
+import type { NotificationConfig } from '@raeduslabs/core/notifications';
 
-configureNotifications({
-  storagePrefix: '@pet-health',
-  channelId: 'daily-reminders',
-  channelName: 'Daily Reminders',
-  appName: 'Pet Health',
-  messages: ['Time to log your pet's health!', ...],
-  accentColor: '#48BB78',
-});
-```
-
-Colors are driven by `createAppTheme()`:
-```typescript
-import { createAppTheme } from '@raeduslabs/core/constants';
-
-const PET_BRAND = {
-  primary: '#48BB78',
-  primarySoft: '#68D391',
-  secondary: '#F6E05E',
-  background: '#0A1A0E',
-  backgroundMid: '#0D2510',
-  backgroundLight: '#0A2E0E',
+const MY_CONFIG: NotificationConfig = {
+  storagePrefix: '@my-app',          // AsyncStorage key prefix
+  channelId: 'daily-reminders',      // Android notification channel ID
+  channelName: 'Daily Reminders',    // Human-readable channel name
+  appName: 'My App',                 // Notification title
+  messages: [                        // Rotated notification body text
+    'Time to check in!',
+    'Don\'t forget to log today.',
+  ],
+  accentColor: '#48BB78',            // Android channel light color
 };
 
-export const Colors = { ...createAppTheme(PET_BRAND), moods: { ... } };
+// In _layout.tsx, before any component renders:
+configureNotifications(MY_CONFIG);
 ```
 
-## Rules for This Package
-- **ZERO app-specific code.** No references to dreams, pets, astrology, etc.
-- **All config is parameterized.** App name, colors, messages come from the consumer.
-- **Peer dependencies only.** React, React Native, Supabase, RevenueCat, Expo modules are peers.
-- **TypeScript source shipped directly.** Metro bundles it -- no build step.
-- **Tests live in the consuming apps**, not here (they test integration, not isolation).
+### Supabase
+Set these env vars in your `.env`:
+```
+EXPO_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+EXPO_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+```
+
+### Gemini AI
+```
+EXPO_PUBLIC_GEMINI_API_KEY=your-gemini-key
+```
+
+### RevenueCat
+Configure in your app's code -- the `useSubscription` hook reads from RevenueCat SDK which you initialize separately.
+
+## Rules
+- **ZERO app-specific code.** No references to dreams, pets, astrology, or any domain.
+- **All config is parameterized.** App name, messages, keys come from the consumer.
+- **Peer dependencies only.** React, React Native, Supabase, RevenueCat, Expo modules.
+- **TypeScript source shipped directly.** Metro bundles it -- no compile step needed.
+- **Tests live in consuming apps** (integration context), not here.
 
 ## Update Flow
-1. Fix/improve code in this repo
+1. Fix/improve code here
 2. Push to GitHub (`astraedus/app-core`)
-3. In each app: `npm update @raeduslabs/core`
-4. Verify tsc + tests in each app
+3. In each consuming app: `npm update @raeduslabs/core`
+4. Run tsc + tests in each app to verify
+
+## Module API Reference
+
+### ai/
+| Export | Type | Description |
+|--------|------|-------------|
+| `complete(options)` | async function | Send prompt to Gemini, get structured response |
+| `parseJsonResponse<T>(content)` | function | Strip markdown fences, parse JSON from LLM output |
+| `getClient()` | function | Get the GoogleGenerativeAI singleton |
+
+### auth/
+| Export | Type | Description |
+|--------|------|-------------|
+| `useAuth()` | hook | Returns `{ user, session, loading, signIn, signUp, signInWithGoogle, signOut, resetPassword }` |
+| `AuthProvider` | component | Wrap app root to provide auth context |
+| `useAuthContext()` | hook | Access auth context directly |
+
+### notifications/
+| Export | Type | Description |
+|--------|------|-------------|
+| `configureNotifications(config)` | function | **Must call first.** Sets app-specific notification config |
+| `configureNotificationHandler()` | function | Register foreground notification behavior |
+| `setupAndroidChannel()` | async function | Create Android notification channel |
+| `requestPermissions()` | async function | Request notification permissions |
+| `scheduleMorningReminder(hour, min)` | async function | Schedule daily notification |
+| `cancelMorningReminder()` | async function | Cancel scheduled notification |
+| `setMorningReminderEnabled(enabled, time?)` | async function | High-level toggle (permissions + schedule + persist) |
+| `updateReminderTime(time)` | async function | Change reminder time |
+| `loadReminderPreferences()` | async function | Read saved preferences |
+
+### storage/
+| Export | Type | Description |
+|--------|------|-------------|
+| `supabase` | SupabaseClient | Configured Supabase client singleton |
+
+### subscription/
+| Export | Type | Description |
+|--------|------|-------------|
+| `useSubscription()` | hook | Returns `{ isPro, loading, purchase, restore }` |
 
 ## Current Consumers
-- `dream-journal` (Recall: AI Dream Journal)
-- (future: pet-health, astrology, adhd)
+- **dream-journal** -- Recall: AI Dream Journal (Play Store review pending)
+- (planned: pet-health, astrology, adhd)
